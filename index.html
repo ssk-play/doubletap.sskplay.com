@@ -46,6 +46,13 @@
   button { font: inherit; background: #1e293b; color: #cbd5e1; border: 1px solid #334155; border-radius: 6px; padding: 5px 12px; cursor: pointer; }
   button:hover { background: #334155; }
   .hint { color: #64748b; font-size: 11px; }
+  input#label { font: inherit; background: #0b0e14; color: #e2e8f0; border: 1px solid #334155; border-radius: 6px; padding: 5px 10px; width: 190px; }
+  input#label::placeholder { color: #475569; }
+  #modal { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; z-index: 10; }
+  #modal.show { display: flex; }
+  #modal .box { background: #0b0e14; border: 1px solid #334155; border-radius: 10px; padding: 14px; width: min(680px, 92vw); }
+  #modal textarea { width: 100%; height: 42vh; background: #050810; color: #cbd5e1; border: 1px solid #1e293b; border-radius: 6px; font: 12px ui-monospace, monospace; padding: 8px; box-sizing: border-box; }
+  #modal .mrow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; color: #94a3b8; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -73,10 +80,16 @@
     </aside>
   </main>
   <footer>
+    <input id="label" placeholder="machine label (e.g. works-mac)" />
     <button id="reset">Reset</button>
-    <button id="copy">Copy log</button>
-    <span class="hint">Open on the mirrored Mac's browser, then double-tap via the Android touchback. A real double-click shows <b style="color:#6ee7b7">detail=2</b> and a green <b style="color:#6ee7b7">dblclick</b> row.</span>
+    <button id="copy">Copy report</button>
+    <span class="hint">Double-tap the pad via the Android touchback, then <b>Copy report</b> and paste it back. A real double-click shows <b style="color:#6ee7b7">detail=2</b> + a green <b style="color:#6ee7b7">dblclick</b> row.</span>
   </footer>
+
+  <div id="modal"><div class="box">
+    <div class="mrow"><span>Clipboard blocked — select all &amp; copy manually (⌘/Ctrl-A, then ⌘/Ctrl-C)</span><button id="mclose">Close</button></div>
+    <textarea id="mtext" readonly></textarea>
+  </div></div>
 
 <script>
 (function () {
@@ -154,11 +167,39 @@
   $('reset').onclick = () => { rows.innerHTML = ''; n = 0; lastClick = null; maxDetail = 0; sawDblSincePair = false;
     verdict.textContent = '— tap twice —'; verdict.className = '';
     ['s-gap','s-dist','s-detail','s-dbl','s-ptr'].forEach(id => $(id).textContent = '—'); };
+  function buildReport() {
+    const label = ($('label').value || '').trim();
+    let t = '## Double-tap probe' + (label ? ' — ' + label : '') + '\n';
+    t += 'env: ' + $('env').textContent + '\n';
+    t += 'summary: maxDetail=' + $('s-detail').textContent + ', lastGap=' + $('s-gap').textContent +
+         ', lastDist=' + $('s-dist').textContent + ', dblclick=' + $('s-dbl').textContent +
+         ', pointer=' + $('s-ptr').textContent + '\n\n';
+    t += '| # | event | detail | Δt ms | Δpx | x | y |\n|--:|:--|--:|--:|--:|--:|--:|\n';
+    rows.querySelectorAll('tr').forEach(tr => {
+      t += '| ' + [...tr.children].map(td => td.textContent).join(' | ') + ' |\n';
+    });
+    return t;
+  }
+  function flashCopied() { const o = $('copy').textContent; $('copy').textContent = 'Copied ✅'; setTimeout(() => $('copy').textContent = o, 1200); }
+  function showManual(text) {
+    $('mtext').value = text; $('modal').classList.add('show');
+    setTimeout(() => { $('mtext').focus(); $('mtext').select(); }, 30);
+  }
   $('copy').onclick = () => {
-    let t = $('env').textContent + '\n#\tevent\tdetail\tΔt\tΔpx\tx\ty\n';
-    rows.querySelectorAll('tr').forEach(tr => { t += [...tr.children].map(td => td.textContent).join('\t') + '\n'; });
-    navigator.clipboard.writeText(t).then(() => { $('copy').textContent = 'Copied'; setTimeout(() => $('copy').textContent = 'Copy log', 1000); });
+    const text = buildReport();
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(flashCopied).catch(() => showManual(text));
+    } else {
+      // Insecure context / older browser: try the legacy path, else offer manual copy.
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      let ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+      ok ? flashCopied() : showManual(text);
+    }
   };
+  $('mclose').onclick = () => $('modal').classList.remove('show');
 })();
 </script>
 </body>
