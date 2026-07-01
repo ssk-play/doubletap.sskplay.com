@@ -13,10 +13,12 @@
     background: #0b0e14; color: #cbd5e1;
     display: flex; flex-direction: column; height: 100vh; overflow: hidden;
   }
-  header { padding: 10px 14px; border-bottom: 1px solid #1e293b; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  header h1 { font-size: 15px; margin: 0; color: #e2e8f0; font-weight: 600; }
-  #env { font-size: 11px; color: #64748b; }
-  #verdict { font-size: 18px; font-weight: 700; margin-left: auto; padding: 4px 12px; border-radius: 6px; background: #1e293b; }
+  /* Fixed height + no wrap so changing verdict/env text can NEVER resize the
+     header or shift the pad below it (which would move click coordinates). */
+  header { height: 52px; flex: 0 0 auto; padding: 0 14px; border-bottom: 1px solid #1e293b; display: flex; align-items: center; gap: 12px; flex-wrap: nowrap; overflow: hidden; }
+  header h1 { font-size: 15px; margin: 0; color: #e2e8f0; font-weight: 600; flex: 0 0 auto; }
+  #env { font-size: 11px; color: #64748b; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #verdict { flex: 0 0 auto; width: 240px; text-align: center; font-size: 15px; font-weight: 700; padding: 6px 10px; border-radius: 6px; background: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #verdict.ok { background: #064e3b; color: #6ee7b7; }
   #verdict.bad { background: #4c0519; color: #fda4af; }
   main { flex: 1; display: flex; min-height: 0; }
@@ -126,25 +128,21 @@
       $('s-ptr').textContent = lastPointerType;
       if (detail >= 2) flash('flash2'); else flash('flash1');
     }
+    // Verdict text stays SHORT and constant-width; the numbers live in the stats
+    // panel so the header never changes size (which would shift the pad).
     if (type === 'dblclick') {
       sawDblSincePair = true;
       $('s-dbl').textContent = 'YES ✅';
       verdict.textContent = 'dblclick ✅';
       verdict.className = 'ok';
-    } else if (type === 'click' && detail === 1 && lastClick) {
-      // a fresh single click resets the running verdict
-      if (!sawDblSincePair) { $('s-dbl').textContent = 'no'; }
-    } else if (type === 'click' && detail >= 2 && !sawDblSincePair) {
-      // detail hit 2 but no dblclick yet (should follow immediately)
-    }
-    // Judge a completed pair: second click arrived.
-    if (type === 'click' && detail >= 2) {
-      verdict.textContent = `detail=${detail} ✅  (${dt}ms, ${dpx}px)`;
+    } else if (type === 'click' && detail >= 2) {
+      verdict.textContent = 'double ✅';
       verdict.className = 'ok';
-    } else if (type === 'click' && detail === 1 && dt !== '') {
-      // second physical tap but browser counted it as a fresh single → failure signal
-      verdict.textContent = `2nd click counted as detail=1 ✗  (${dt}ms, ${dpx}px apart)`;
-      verdict.className = 'bad';
+    } else if (type === 'click' && detail === 1) {
+      if (!sawDblSincePair) $('s-dbl').textContent = 'no';
+      // A second physical tap counted as a fresh single click is the failure signal.
+      verdict.textContent = (dt !== '') ? 'single only ✗' : '— tap again —';
+      verdict.className = (dt !== '') ? 'bad' : '';
     }
   }
 
